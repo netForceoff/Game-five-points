@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+    <style media="screen">
+      .gamer1 {
+        background: red;
+      }
+
+      .gamer2 {
+        background: green;
+      }
+
+      .gamer3 {
+        background: yellow;
+      }
+
+      .gamer4 {
+        background: blue;
+      }
+
+      td {
+        width: 20px;
+        height: 20px;
+        border: 1px solid black;
+      }
+
+      .winner {
+        border: 1px solid red;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="game">
+      <select class="gamers">
+        <option selected>Выберите игроков</option>
+        <option>2</option>
+        <option>3</option>
+        <option>4</option>
+      </select>
+    </div>
+    <button type="button" name="button">Начать игру</button>
+    <script type="text/javascript">
+
+      class Field {
+        constructor(selector, rows, cols, select, button) {
+          this._gameEnd = false;
+          this._field = document.querySelector(selector);
+          this._rows = rows;
+          this._cols = cols;
+          this._html = new HTML;
+          this._dots = new Dots;
+          this._queue = new Queue(select, button, this._field, this._rows, this._cols);
+          this._run();
+        }
+
+        _run() {
+          this._field.addEventListener('click', () => {
+          let cell = event.target.closest('td:not(.gamer)');
+            if (!this._gameEnd && cell) {
+              let col = this._html.getPrevSiblingsNum(cell);
+              let row = this._html.getPrevSiblingsNum(cell.parentElement);
+              let gamer = this._queue.getQueue();
+              let name = this._queue.getName();
+              let dot = new Dot(gamer, name, cell, col, row, this._dots);
+              this._dots.add(dot, row, col);
+
+              let winLine = this._checkWin(dot, name);
+              if (winLine) {
+                this._win(winLine);
+                alert('Победитель: ' + name);
+              }
+            }
+          });
+        }
+
+        _win(winLine) {
+          this._gameEnd = true;
+          this._notifyWinnerCells(winLine);
+        }
+
+        _notifyWinnerCells(winLine) {
+          winLine.forEach((dot) => {
+            dot.becomeWinner();
+          });
+        }
+
+        _checkWin(dot) {
+          let dirs = [
+            {deltaRow: 0, deltaCol: -1},
+            {deltaRow: -1, deltaCol: -1},
+            {deltaRow: -1, deltaCol: 0},
+            {deltaRow: -1, deltaCol: 1},
+          ];
+
+          for (var i = 0; i < dirs.length; i++) {
+            let line = this._checkLine(dot, dirs[i].deltaRow, dirs[i].deltaCol);
+
+            if (line.length >= 5 ) {
+              return line;
+            }
+          };
+          return false;
+        }
+
+        _checkLine(dot, deltaRow, deltaCol) {
+          let dir1 = this._checkDir(dot, deltaRow, deltaCol);
+          let dir2 = this._checkDir(dot, -deltaRow, -deltaCol);
+
+          return [].concat(dir1, [dot], dir2);
+        }
+
+        _checkDir(dot, deltaRow, deltaCol) {
+          let result = [];
+          let neighbor = dot;
+
+          while (true) {
+          neighbor = neighbor.getNeighbor(deltaRow, deltaCol);
+
+          if (neighbor) {
+            result.push(neighbor);
+          } else {
+            return result;
+          }
+          }
+        }
+      }
+
+      class Dots {
+        constructor() {
+          this._dots = {};
+        }
+
+        add(dot, row, col) {
+          if (this._dots[row] == undefined) {
+            this._dots[row] = {};
+          }
+          this._dots[row][col] = dot;
+        }
+
+        get(row, col) {
+          if (this._dots[row] && this._dots[row][col]) {
+            return this._dots[row][col];
+          } else {
+            return undefined;
+          }
+        }
+      }
+
+      class Dot {
+        constructor(gamer, name, elem, col, row, dots) {
+          this._gamer = gamer;
+          this._elem = elem;
+          this._col = col;
+          this._row = row;
+          this._dots = dots;
+          this._name = name;
+
+          this._neighbors = {}; // {-1: {1: Dot, 0: Dot}, 1: {0: Dot}}
+
+          this._findNeighbors();
+          this._notifyNeighbors();
+          this._reflect();
+        }
+
+        getRow() {
+          return this._row;
+        }
+
+        getCol() {
+          return this._col;
+        }
+
+        becomeWinner(gamer) {
+          this._elem.classList.add('winner');
+        }
+
+        getNeighbor(deltaRow, deltaCol) {
+          if (this._neighbors[deltaRow] != undefined) {
+            return this._neighbors[deltaRow][deltaCol];
+          } else {
+            return undefined;
+          }
+        }
+
+        addNeighbor(neighbor) {
+          let deltaRow = neighbor.getRow() - this._row;
+          let deltaCol = neighbor.getCol() - this._col;
+
+          if (this._neighbors[deltaRow] == undefined) {
+            this._neighbors[deltaRow] = {};
+          }
+
+          this._neighbors[deltaRow][deltaCol] = neighbor;
+        }
+
+        _considerNeighbor(deltaRow, deltaCol) {
+          let neighbor = this._dots.get(this._row + deltaRow, this._col + deltaCol);
+
+          if (neighbor != undefined && neighbor._belongsTo(this._gamer) && neighbor._belongsToName(this._name)) {
+            this.addNeighbor(neighbor);
+          }
+        }
+
+        _belongsTo(gamer) {
+          return this._gamer = gamer;
+        }
+
+        _belongsToName(name) {
+          return this._name = name;
+        }
+
+        _findNeighbors() {
+          this._considerNeighbor(1, 1);
+          this._considerNeighbor(1, 0);
+          this._considerNeighbor(1, -1);
+          this._considerNeighbor(-1, 1);
+          this._considerNeighbor(-1, 0);
+          this._considerNeighbor(-1, -1);
+          this._considerNeighbor(0, 1);
+          this._considerNeighbor(0, -1);
+        }
+
+        _notifyNeighbors() {
+          for (let rowKey in this._neighbors) {
+            for (let colKey in this._neighbors[rowKey]) {
+              this._neighbors[rowKey][colKey].addNeighbor(this);
+            }
+          }
+        }
+
+        _reflect() {
+          this._elem.classList.add('gamer');
+          this._elem.classList.add(this._gamer);
+        }
+      }
+
+      class Queue {
+        constructor(select, button, field, rows, cols) {
+          this._button = document.querySelector(button);
+          this._select = document.querySelector(select);
+          this._array = [['gamer1', 'gamer2'], ['gamer1', 'gamer2', 'gamer3'], ['gamer1', 'gamer2', 'gamer3', 'gamer4']];
+          this._html = new HTML;
+          this._field = field;
+          this._rows = rows;
+          this._cols = cols;
+
+          this._button.addEventListener('click', () => {
+            this._arr = this._getArray();
+            this._counter = new Counter(this._arr.length);
+            this._inputName = new InputName(this._arr.length);
+            this._name = this._inputName.getInputName();
+            this._counterName = new Counter(this._name.length);
+          });
+        }
+
+        getQueue() {
+         return this._arr[this._counter.getCounter()];
+       }
+
+        getName() {
+          return this._name[this._counterName.getCounter()];
+        }
+
+        _getArray() {
+          let option = this._select.options;
+          let arraySelect = [];
+
+          for (var i = 0; i < option.length; i++) {
+            if (option[0].selected) {
+              alert('Выберите игроков');
+              break;
+            } else if (option[i].selected) {
+              arraySelect = this._array[i-1];
+              this._html.createTable(this._field, this._rows, this._cols);
+              this._button.disabled = true;
+            }
+          }
+          return arraySelect;
+        }
+      }
+
+      class InputName {
+        constructor(length) {
+          this._length = length;
+        }
+
+        getInputName() {
+          let arrName = [];
+          for (var i = 0; i < this._length; i++) {
+            let name = prompt('Введите имя ' + parseInt(i+1) + ' го игрока');
+            arrName.push(name);
+          }
+          return arrName;
+        }
+      }
+
+      class Counter {
+        constructor(length) {
+          this._length = length
+          this._count = null;
+        }
+
+        getCounter(){
+          if (this._count == null) {
+            this._count = 0;
+          } else {
+            this._count++;
+          }
+          if (this._count == this._length) {
+            this._count = 0;
+          }
+          return this._count;
+        }
+      }
+
+      class HTML {
+        createTable(parent, rows, cols) {
+          let table = document.createElement('table');
+          for (var i = 0; i < rows; i++) {
+            let tr = document.createElement('tr');
+            for (var j = 0; j < cols; j++) {
+              let td = document.createElement('td');
+              tr.appendChild(td);
+            }
+            table.appendChild(tr);
+          }
+          parent.appendChild(table);
+        }
+
+        getPrevSiblingsNum(elem) {
+          let prev = elem.previousSibling;
+          let i = 0;
+
+          while (prev) {
+            prev = prev.previousSibling;
+            i++;
+          }
+          return i;
+        }
+      }
+
+      new Field('.game', 20, 20, '.gamers', 'button');
+    </script>
+  </body>
+</html>
